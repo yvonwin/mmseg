@@ -66,6 +66,7 @@ class FCNHead(BaseDecodeHead):
             self.conv_cat = ConvModule(
                 self.in_channels + self.channels,
                 self.channels,
+                bias=True,
                 kernel_size=kernel_size,
                 padding=kernel_size // 2,
                 conv_cfg=self.conv_cfg,

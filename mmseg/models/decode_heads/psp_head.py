@@ -32,13 +32,14 @@ class PPM(nn.ModuleList):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
+        inter_channels = in_channels // len(pool_scales)
         for pool_scale in pool_scales:
             self.append(
                 nn.Sequential(
                     nn.AdaptiveAvgPool2d(pool_scale),
                     ConvModule(
                         self.in_channels,
-                        self.channels,
+                        inter_channels,
                         1,
                         conv_cfg=self.conv_cfg,
                         norm_cfg=self.norm_cfg,
@@ -79,15 +80,17 @@ class PSPHead(BaseDecodeHead):
             self.pool_scales,
             self.in_channels,
             self.channels,
+            bias=True,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
             align_corners=self.align_corners)
         self.bottleneck = ConvModule(
-            self.in_channels + len(pool_scales) * self.channels,
+            self.in_channels + len(pool_scales) * 512,
             self.channels,
             3,
             padding=1,
+            bias=True,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
