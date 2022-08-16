@@ -975,6 +975,134 @@ class PhotoMetricDistortion(object):
                      f'hue_delta={self.hue_delta})')
         return repr_str
 
+@PIPELINES.register_module()
+class MyPhotoDistortion(object):
+    """自定义 参考hengchen的代码
+    颜色增强 
+    随机噪声
+    
+    待测试
+    """
+
+    def __init__(self,
+                 brightness_delta=32,
+                 contrast_range=(-1, 1),
+                 saturation_range=(-1, 1),
+                 hue_delta=1):
+        self.brightness_delta = brightness_delta
+        self.contrast_lower, self.contrast_upper = contrast_range
+        self.saturation_lower, self.saturation_upper = saturation_range
+        self.hue_delta = hue_delta
+
+    def convert(self, img, alpha=1, beta=0):
+        """Multiple with alpha and add beat with clip."""
+        img = img.astype(np.float32) * alpha + beta
+        img = np.clip(img, 0, 255)
+        return img.astype(np.uint8)
+    
+
+
+    def brightness(self, img):
+        """Brightness distortion."""
+        if random.randint(2):
+            return self.convert(
+                img,
+                beta=random.uniform(-self.brightness_delta,
+                                    self.brightness_delta))
+        return img
+
+    def contrast(self, img):
+        """Contrast distortion."""
+        if random.randint(2):
+            return self.convert(
+                img,
+                alpha=random.uniform(self.contrast_lower, self.contrast_upper)*0.3)
+
+        return img
+
+    def random_noise(self,img,mag=0.1):
+        # pass
+        height, width = img.shape[:2]
+        noise = np.random.uniform(-1,1, (height, width,1))*mag
+        # print(img.shape)  
+        img = self.convert(img,alpha=1,beta=noise)
+        return img
+
+    def random_hsv(self,img,mag=[0.15,0.25,0.25]):
+
+        # s
+        if random.randint(2):
+            # print(type(img))
+            img = mmcv.bgr2hsv(img)
+
+            # h
+    
+            img[:, :, 0] = (img[:, :, 0].astype(np.float32) + random.uniform(-1,1)*mag[0])%180
+            img[:, :, 0] = np.clip(img[:, :, 0], 0, 180)
+            img = img.astype(np.uint8)
+
+            # s
+            img[:, :, 1] = self.convert(
+                img[:, :, 1],
+                alpha=random.uniform(self.saturation_lower,
+                                     self.saturation_upper))
+
+            img[:, :, 2] = self.convert(
+                img[:, :, 2],
+                alpha=random.uniform(self.saturation_lower,
+                                     self.saturation_upper)*mag[2])
+
+            img = mmcv.hsv2bgr(img)
+        return img
+
+
+    def __call__(self, results):
+        """Call function to perform photometric distortion on images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Result dict with images distorted.
+        """
+
+        img = results['img']
+        # random brightness
+        # img = self.brightness(img)
+
+        # img = self.random_noise(img)
+
+        # mode == 0 --> do random contrast first
+        # mode == 1 --> do random contrast last
+        mode = random.randint(2)
+        if mode == 1:
+            img = self.contrast(img)
+
+        # random saturation
+        # img = self.saturation(img)
+
+        # random hue
+        # img = self.hue(img)
+
+        
+        img = self.random_hsv(img)
+
+        # random contrast
+        if mode == 0:
+            img = self.contrast(img)
+
+        results['img'] = img
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += (f'(brightness_delta={self.brightness_delta}, '
+                     f'contrast_range=({self.contrast_lower}, '
+                     f'{self.contrast_upper}), '
+                     f'saturation_range=({self.saturation_lower}, '
+                     f'{self.saturation_upper}), '
+                     f'hue_delta={self.hue_delta})')
+        return repr_str
 
 @PIPELINES.register_module()
 class RandomCutOut(object):
