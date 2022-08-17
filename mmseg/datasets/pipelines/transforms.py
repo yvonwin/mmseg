@@ -15,6 +15,8 @@ except ImportError:
     albumentations = None
     Compose = None
 import inspect
+import cv2
+
 
 from ..builder import PIPELINES
 
