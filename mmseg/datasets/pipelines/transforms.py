@@ -6,8 +6,17 @@ import numpy as np
 from mmcv.utils import deprecated_api_warning, is_tuple_of
 from numpy import random
 
-from ..builder import PIPELINES
 
+# albu is deleted in mmseg now..
+try:
+    import albumentations
+    from albumentations import Compose
+except ImportError:
+    albumentations = None
+    Compose = None
+import inspect
+
+from ..builder import PIPELINES
 
 @PIPELINES.register_module()
 class ResizeToMultiple(object):
@@ -1011,24 +1020,24 @@ class MyPhotoDistortion(object):
                                     self.brightness_delta))
         return img
 
-    def contrast(self, img):
+    def contrast(self, img,mag=0.25):
         """Contrast distortion."""
         if random.randint(2):
             return self.convert(
                 img,
-                alpha=random.uniform(self.contrast_lower, self.contrast_upper)*0.3)
+                alpha=random.uniform(self.contrast_lower, self.contrast_upper)*mag)
 
         return img
 
     def random_noise(self,img,mag=0.1):
-        # pass
-        height, width = img.shape[:2]
-        noise = np.random.uniform(-1,1, (height, width,1))*mag
-        # print(img.shape)  
-        img = self.convert(img,alpha=1,beta=noise)
-        return img
+        if random.randint(2):
+            height, width = img.shape[:2]
+            noise = np.random.uniform(-1,1, (height, width,1))*mag
+            # print(img.shape)  
+            img = self.convert(img,alpha=1,beta=noise)
+            return img
 
-    def random_hsv(self,img,mag=[0.15,0.25,0.25]):
+    def random_hsv(self,img,mag=[0.3,0.3,0]):
 
         # s
         if random.randint(2):
@@ -1070,7 +1079,7 @@ class MyPhotoDistortion(object):
         # random brightness
         # img = self.brightness(img)
 
-        # img = self.random_noise(img)
+        img = self.random_noise(img)
 
         # mode == 0 --> do random contrast first
         # mode == 1 --> do random contrast last
@@ -1085,11 +1094,11 @@ class MyPhotoDistortion(object):
         # img = self.hue(img)
 
         
-        img = self.random_hsv(img)
-
         # random contrast
         if mode == 0:
             img = self.contrast(img)
+
+        img = self.random_hsv(img)
 
         results['img'] = img
         return results
@@ -1460,4 +1469,147 @@ class RandomMosaic(object):
         repr_str += f'center_ratio_range={self.center_ratio_range}, '
         repr_str += f'pad_val={self.pad_val}, '
         repr_str += f'seg_pad_val={self.pad_val})'
+        return repr_str
+
+
+# wk add albu
+# from https://github.com/open-mmlab/mmsegmentation/pull/1783/commits/bbac86ec4d9fd7e9f176324ef1f32eb829279cbf
+@PIPELINES.register_module()
+class Albu:
+    """Albumentation augmentation.
+    Adds custom transformations from Albumentations library.
+    Please, visit `https://albumentations.readthedocs.io`
+    to get more information.
+    An example of ``transforms`` is as followed:
+    .. code-block::
+        [
+            dict(
+                type='ShiftScaleRotate',
+                shift_limit=0.0625,
+                scale_limit=0.0,
+                rotate_limit=0,
+                interpolation=1,
+                p=0.5),
+            dict(
+                type='RandomBrightnessContrast',
+                brightness_limit=[0.1, 0.3],
+                contrast_limit=[0.1, 0.3],
+                p=0.2),
+            dict(type='ChannelShuffle', p=0.1),
+            dict(
+                type='OneOf',
+                transforms=[
+                    dict(type='Blur', blur_limit=3, p=1.0),
+                    dict(type='MedianBlur', blur_limit=3, p=1.0)
+                ],
+                p=0.1),
+        ]
+    Args:
+        transforms (list[dict]): A list of albu transformations
+        keymap (dict): Contains {'input key':'albumentation-style key'}
+    """
+
+    def __init__(self,
+                 transforms,
+                 keymap=None,
+                 update_pad_shape=False):
+        if Compose is None:
+            raise RuntimeError('albumentations is not installed')
+
+        # Args will be modified later, copying it will be safer
+        transforms = copy.deepcopy(transforms)
+        if keymap is not None:
+            keymap = copy.deepcopy(keymap)
+        self.transforms = transforms
+        self.update_pad_shape = update_pad_shape
+
+        self.aug = Compose([self.albu_builder(t) for t in self.transforms],
+                           bbox_params=None)
+
+        if not keymap:
+            self.keymap_to_albu = {
+                'img': 'image',
+                'gt_semantic_seg': 'mask'
+            }
+        else:
+            self.keymap_to_albu = keymap
+        self.keymap_back = {v: k for k, v in self.keymap_to_albu.items()}
+
+    def albu_builder(self, cfg):
+        """Import a module from albumentations.
+        It inherits some of :func:`build_from_cfg` logic.
+        Args:
+            cfg (dict): Config dict. It should at least contain the key "type".
+        Returns:
+            obj: The constructed object.
+        """
+
+        assert isinstance(cfg, dict) and 'type' in cfg
+        args = cfg.copy()
+
+        obj_type = args.pop('type')
+        if mmcv.is_str(obj_type):
+            if albumentations is None:
+                raise RuntimeError('albumentations is not installed')
+            obj_cls = getattr(albumentations, obj_type)
+        elif inspect.isclass(obj_type):
+            obj_cls = obj_type
+        else:
+            raise TypeError(
+                f'type must be a str or valid type, but got {type(obj_type)}')
+
+        if 'transforms' in args:
+            args['transforms'] = [
+                self.albu_builder(transform)
+                for transform in args['transforms']
+            ]
+
+        return obj_cls(**args)
+
+    @staticmethod
+    def mapper(d, keymap):
+        """Dictionary mapper. Renames keys according to keymap provided.
+        Args:
+            d (dict): old dict
+            keymap (dict): {'old_key':'new_key'}
+        Returns:
+            dict: new dict.
+        """
+
+        updated_dict = {}
+        for k, v in zip(d.keys(), d.values()):
+            new_k = keymap.get(k, k)
+            updated_dict[new_k] = d[k]
+        return updated_dict
+
+    def __call__(self, results):
+        # dict to albumentations format
+        results = self.mapper(results, self.keymap_to_albu)
+
+        # Convert BRG to RGB images because Albumentations
+        # works with RGB and mmcv reads images in BGR
+        results['image'] = cv2.cvtColor(results['image'], cv2.COLOR_BGR2RGB)
+
+        results = self.aug(**results)
+
+        # Convert back image results to BGR colorspace
+        results['image'] = cv2.cvtColor(results['image'], cv2.COLOR_RGB2BGR)
+
+        if 'gt_labels' in results:
+            if isinstance(results['gt_labels'], list):
+                results['gt_labels'] = np.array(results['gt_labels'])
+            results['gt_labels'] = results['gt_labels'].astype(np.int64)
+
+        # back to the original format
+        results = self.mapper(results, self.keymap_back)
+
+        # update final shape
+        if self.update_pad_shape:
+            results['pad_shape'] = results['img'].shape
+        results['img_shape'] = results['img'].shape
+
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__ + f'(transforms={self.transforms})'
         return repr_str
