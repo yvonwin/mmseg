@@ -1027,17 +1027,34 @@ class MyPhotoDistortion(object):
         if random.randint(2):
             return self.convert(
                 img,
-                alpha=random.uniform(self.contrast_lower, self.contrast_upper)*mag)
-
+                alpha=random.uniform(self.contrast_lower, self.contrast_upper) * mag
+            )
         return img
+
+    # def random_noise(self,img,mag=0.1):
+    #     if random.randint(2):
+    #         print(img)
+    #         print(type(img))
+    #         print(img.shape)
+    #         height, width = img.shape[:2]
+    #         noise = random.uniform(-1,1, (height, width,3))*mag
+    #         # print(img.shape)  
+    #         img = img.astype(np.float32) + noise
+    #         img = np.clip(img, 0, 255)
+    #         return img.astype(np.uint8)
 
     def random_noise(self,img,mag=0.1):
         if random.randint(2):
+            # print(type(img))
+            # print(img.dtype)
             height, width = img.shape[:2]
-            noise = np.random.uniform(-1,1, (height, width,1))*mag
-            # print(img.shape)  
-            img = self.convert(img,alpha=1,beta=noise)
-            return img
+            noise = np.random.uniform(-255,255, (height, width,1))*mag
+            # print(noise.dtype)
+            img = img.astype(np.float32) + noise.astype(np.float32)
+            # print(img.dtype)
+            img = np.clip(img, 0, 255)
+            img = img.astype(np.uint8)
+        return img
 
     def random_hsv(self,img,mag=[0.3,0.3,0]):
 
@@ -1080,6 +1097,7 @@ class MyPhotoDistortion(object):
         img = results['img']
         # random brightness
         # img = self.brightness(img)
+
 
         img = self.random_noise(img)
 

@@ -50,7 +50,7 @@ size = 768
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    # dict(type='Resize', img_scale=(size, size), keep_ratio=True),
+    dict(type='Resize', img_scale=(size, size), keep_ratio=True),
     dict(type='RandomFlip', prob=0.5, direction='horizontal'),
 
     dict(
