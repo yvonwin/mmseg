@@ -1064,9 +1064,12 @@ class MyPhotoDistortion(object):
             img = mmcv.bgr2hsv(img)
 
             # h
-    
-            img[:, :, 0] = (img[:, :, 0].astype(np.float32) + random.uniform(-1,1)*mag[0])%180
-            img[:, :, 0] = np.clip(img[:, :, 0], 0, 180)
+            h = img[:,:,0].astype(np.float32)
+            # img[:, :, 0] = (img[:, :, 0].astype(np.float32) + random.uniform(-1,1)*mag[0])%180
+
+            h = (h*(1 + random.uniform(-1,1)*mag[0]))%180
+            # img[:, :, 0] = np.clip(img[:, :, 0], 0, 180)
+            img[:, :, 0] = np.clip(h,0,180).astype(np.uint8)
             img = img.astype(np.uint8)
 
             # s
@@ -1118,6 +1121,7 @@ class MyPhotoDistortion(object):
         if mode == 0:
             img = self.contrast(img)
 
+        # do random_hsv
         img = self.random_hsv(img)
 
         results['img'] = img
