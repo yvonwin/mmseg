@@ -1,49 +1,60 @@
-# b2 pb 0.71
-checkpoint = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/segformer/mit_b2_20220624-66e8bf70.pth'  # noqa
+# b2 单分类pb 0.71
+# TODO TEST
 
+num_classes = 6
 
-# model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
+custom_imports = dict(imports='mmcls.models', allow_failed_imports=False)
+checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-base_3rdparty_in21k_20220301-262fd037.pth'  # noqa
 model = dict(
     type='EncoderDecoder',
-    pretrained=checkpoint,
+    pretrained=None,
     backbone=dict(
-        type='MixVisionTransformer',
-        in_channels=3,
-        embed_dims=64,
-        num_stages=4,
-        num_layers=[3, 4, 6, 3],
-        num_heads=[1, 2, 5, 8],
-        patch_sizes=[7, 3, 3, 3],
-        sr_ratios=[8, 4, 2, 1],
-        out_indices=(0, 1, 2, 3),
-        mlp_ratio=4,
-        qkv_bias=True,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.1),
+        type='mmcls.ConvNeXt',
+        arch='base',
+        out_indices=[0, 1, 2, 3],
+        drop_path_rate=0.4,
+        layer_scale_init_value=1.0,
+        gap_before_final_norm=False,
+        init_cfg=dict(
+            type='Pretrained', checkpoint=checkpoint_file,
+            prefix='backbone.')),
     decode_head=dict(
-        type='SegformerHead',
-        in_channels=[64, 128, 320, 512],
+        type='UPerHead',
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
-        channels=256,
+        pool_scales=(1, 2, 3, 6),
+        channels=512,
         dropout_ratio=0.1,
-        num_classes=2,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)))
-
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+    auxiliary_head=dict(
+        type='FCNHead',
+        in_channels=512,
+        in_index=2,
+        channels=256,
+        num_convs=1,
+        concat_input=False,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        norm_cfg=norm_cfg,
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+)
 # model training and testing settings
 train_cfg=dict(),
 test_cfg=dict(mode='whole' )
 
 # dataset settings
 dataset_type = 'CustomDataset'
-data_root = './mmseg_data/'
-classes = ['BG', 'FTU']
-palette = [[0,0,0], [255,0,0]]
-# img_norm_cfg = dict(mean=[0.82829495,0.80269746,0.82058063], std=[0.16030526,0.18857197,0.17771745], to_rgb=True)
+data_root = './mmseg_multi_data/'
+classes = ['background', 'kidney', 'prostate', 'largeintestine', 'spleen', 'lung']
+palette = [[0,0,0], [255,0,0], [0,255,0], [0,0,255], [255,255,0], [255,0,255]]
+
 img_norm_cfg = dict(mean=[0,0,0], std=[1,1,1], to_rgb=True)
 size = 768
 
@@ -63,11 +74,17 @@ train_pipeline = [
                 #     type='OneOf',
                 #     transforms=[
                 #         dict(
-                #             type='IAAPiecewiseAffine',p=0.3),
-                #         dict(type='GridDistortion', p=.1),
+                #             type='ElasticTransform',
+                #             alpha=120,
+                #             sigma=6.0,
+                #             alpha_affine=3.5999999999999996,
+                #             p=1),
+                #         dict(type='GridDistortion', p=1),
                 #         dict(
                 #             type='OpticalDistortion',
-                #             p=0.3)
+                #             distort_limit=2,
+                #             shift_limit=0.5,
+                #             p=1)
                 #     ],
                 #     p=0.3),
                 dict(
@@ -106,29 +123,27 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    # 40g
-    # samples_per_gpu=16,
     samples_per_gpu=8,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
-        split="splits/fold_4.txt",
+        split="splits/fold_0.txt",
         classes=classes,
         palette=palette,
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
-        split="splits/valid_4.txt",
+        split="splits/valid_0.txt",
         classes=classes,
         palette=palette,
         pipeline=test_pipeline),
@@ -136,13 +151,14 @@ data = dict(
         type=dataset_type,
         data_root=data_root,
         test_mode=True,
-        img_dir='test/images',
-        ann_dir='test/labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
         classes=classes,
         palette=palette,
         pipeline=test_pipeline))
+
 
 # yapf:disable
 log_config = dict(
@@ -165,7 +181,7 @@ cudnn_benchmark = True
 optimizer = dict(
     type='AdamW',
     # lr=0.00006,
-    lr=6e-5,
+    lr=1e-4,
     betas=(0.9, 0.999),
     weight_decay=0.05,
     # paramwise_cfg=dict(
@@ -205,4 +221,4 @@ checkpoint_config = dict(by_epoch=False, interval=4000)
 # evaluation = dict(by_epoch=False, interval=500, metric='mDice', pre_eval=True)
 evaluation = dict(by_epoch=False, interval=4000, metric='mDice', pre_eval=True)
 fp16 = dict()
-work_dir = './mmseg-mit-b2'
+work_dir = './convnext_uper_multi'

@@ -1,49 +1,75 @@
-# b2
-checkpoint = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/segformer/mit_b2_20220624-66e8bf70.pth'  # noqa
 
+# from https://github.com/open-mmlab/mmsegmentation/blob/master/configs/swin/upernet_swin_large_patch4_window12_512x512_pretrain_384x384_22K_160k_ade20k.py
+# TODO TEST
+# 1. 能跑。
+# 2. 一万次迭代测试。
 
+num_classes = 6
+
+checkpoint_file = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/swin_large_patch4_window12_384_22k_20220412-6580f57d.pth'  # noqa
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
+backbone_norm_cfg = dict(type='LN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    pretrained=checkpoint,
+    # pretrained=None,
+    pretrained=checkpoint_file,
     backbone=dict(
-        type='MixVisionTransformer',
-        in_channels=3,
-        embed_dims=64,
-        num_stages=4,
-        num_layers=[3, 4, 6, 3],
-        num_heads=[1, 2, 5, 8],
-        patch_sizes=[7, 3, 3, 3],
-        sr_ratios=[8, 4, 2, 1],
-        out_indices=(0, 1, 2, 3),
+        type='SwinTransformer',
+        pretrain_img_size=384,
+        embed_dims=192,
+        patch_size=4,
+        window_size=12,
         mlp_ratio=4,
+        depths=[2, 2, 18, 2],
+        num_heads=[6, 12, 24, 48],
+        strides=(4, 2, 2, 2),
+        out_indices=(0, 1, 2, 3),
         qkv_bias=True,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.1),
+        qk_scale=None,
+        patch_norm=True,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.3,
+        use_abs_pos_embed=False,
+        act_cfg=dict(type='GELU'),
+        norm_cfg=backbone_norm_cfg),
     decode_head=dict(
-        type='SegformerHead',
-        in_channels=[64, 128, 320, 512],
+        type='UPerHead',
+        in_channels=[192, 384, 768, 1536],
         in_index=[0, 1, 2, 3],
-        channels=256,
+        pool_scales=(1, 2, 3, 6),
+        channels=512,
         dropout_ratio=0.1,
-        num_classes=2,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)))
-
-# model training and testing settings
-train_cfg=dict(),
-test_cfg=dict(mode='whole' )
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+    auxiliary_head=dict(
+        type='FCNHead',
+        in_channels=768,
+        in_index=2,
+        channels=256,
+        num_convs=1,
+        concat_input=False,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        norm_cfg=norm_cfg,
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+    # model training and testing settings
+    train_cfg=dict(),
+    test_cfg=dict(mode='whole'))
 
 # dataset settings
 dataset_type = 'CustomDataset'
-data_root = './mmseg_data/'
-classes = ['BG', 'FTU']
-palette = [[0,0,0], [255,0,0]]
-img_norm_cfg = dict(mean=[0.82829495,0.80269746,0.82058063], std=[0.16030526,0.18857197,0.17771745], to_rgb=True)
+data_root = './mmseg_multi_data/'
+classes = ['background', 'kidney', 'prostate', 'largeintestine', 'spleen', 'lung']
+palette = [[0,0,0], [255,0,0], [0,255,0], [0,0,255], [255,255,0], [255,0,255]]
+
+img_norm_cfg = dict(mean=[0,0,0], std=[1,1,1], to_rgb=True)
 size = 768
 
 
@@ -57,33 +83,37 @@ train_pipeline = [
             type='Albu',
             transforms=[
                 # dict(type='RandomBrightnessContrast', p=0.5),
-                dict(
-                    type='OneOf',
-                    transforms=[
-                        dict(
-                            type='ElasticTransform',
-                            alpha=120,
-                            sigma=6.0,
-                            alpha_affine=3.5999999999999996,
-                            p=1),
-                        dict(type='GridDistortion', p=1),
-                        dict(
-                            type='OpticalDistortion',
-                            distort_limit=2,
-                            shift_limit=0.5,
-                            p=1)
-                    ],
-                    p=0.3),
+                dict(type='RandomRotate90', p=1),
+                # dict(
+                #     type='OneOf',
+                #     transforms=[
+                #         dict(
+                #             type='ElasticTransform',
+                #             alpha=120,
+                #             sigma=6.0,
+                #             alpha_affine=3.5999999999999996,
+                #             p=1),
+                #         dict(type='GridDistortion', p=1),
+                #         dict(
+                #             type='OpticalDistortion',
+                #             distort_limit=2,
+                #             shift_limit=0.5,
+                #             p=1)
+                #     ],
+                #     p=0.3),
                 dict(
                     type='ShiftScaleRotate',
-                    shift_limit=0.1,
-                    scale_limit=0.2,
-                    rotate_limit=10,
+                    shift_limit=0,
+                    scale_limit=(0.5, 2),
+                    rotate_limit=(-45, 45),
                     interpolation=1,
+                    border_mode=0,
+                    value = (0,0,0),
                     p=0.5),
                 # dict(type='Resize', height=640, width=640, always_apply=True, p=1),
                 # dict(type='RandomCrop', height=448, width=448, p=1)
             ]),
+            
     dict(type='MyPhotoDistortion'),
     
     dict(type='Normalize', **img_norm_cfg),
@@ -107,14 +137,13 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    # samples_per_gpu=12,
     samples_per_gpu=4,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
         split="splits/fold_0.txt",
@@ -124,8 +153,8 @@ data = dict(
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
         split="splits/valid_0.txt",
@@ -136,13 +165,14 @@ data = dict(
         type=dataset_type,
         data_root=data_root,
         test_mode=True,
-        img_dir='test/images',
-        ann_dir='test/labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
         classes=classes,
         palette=palette,
         pipeline=test_pipeline))
+
 
 # yapf:disable
 log_config = dict(
@@ -158,25 +188,27 @@ resume_from = None
 workflow = [('train', 1)]
 cudnn_benchmark = True
 
-total_iters = 100000
+
 # optimizer
 # optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
 # optimizer
 optimizer = dict(
     type='AdamW',
-    lr=0.00006,
+    # lr=0.00006,
+    lr=1e-4,
     betas=(0.9, 0.999),
-    weight_decay=0.01,
-    paramwise_cfg=dict(
-        custom_keys={
-            'pos_block': dict(decay_mult=0.),
-            'norm': dict(decay_mult=0.),
-            'head': dict(lr_mult=10.)
-        }))
+    weight_decay=0.05,
+    # paramwise_cfg=dict(
+    #     custom_keys={
+    #         'pos_block': dict(decay_mult=0.),
+    #         'norm': dict(decay_mult=0.),
+    #         'head': dict(lr_mult=10.)
+    #     })
+    )
 
-# optimizer_config = dict(type='Fp16OptimizerHook', loss_scale='dynamic')
+optimizer_config = dict(type='Fp16OptimizerHook', loss_scale='dynamic')
 
-optimizer_config = dict()
+# optimizer_config = dict()
 
 # learning policy
 # lr_config = dict(policy='poly',
@@ -187,20 +219,20 @@ optimizer_config = dict()
 lr_config = dict(
     policy='poly',
     warmup='linear',
-    warmup_iters=1200,
+    warmup_iters=400,
     warmup_ratio=1e-6,
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
 
-
+total_iters = 80000
 # runtime settings
 find_unused_parameters = True
 runner = dict(type = 'IterBasedRunner', max_iters = total_iters)
 # checkpoint_config = dict(by_epoch=False, interval=-1, save_optimizer=False)
-checkpoint_config = dict(by_epoch=False, interval=10000)
+checkpoint_config = dict(by_epoch=False, interval=4000)
 
 # evaluation = dict(by_epoch=False, interval=500, metric='mDice', pre_eval=True)
-evaluation = dict(by_epoch=False, interval=10000, metric='mDice', pre_eval=True)
+evaluation = dict(by_epoch=False, interval=4000, metric='mDice', pre_eval=True)
 fp16 = dict()
-work_dir = './mmseg-mit-b2'
+work_dir = './swin_uper_multi'

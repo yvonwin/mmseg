@@ -1,5 +1,8 @@
-# b2 pb 0.71
+# b2 单分类pb 0.71
+# TODO TEST
 checkpoint = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/segformer/mit_b2_20220624-66e8bf70.pth'  # noqa
+
+num_classes = 6
 
 
 # model settings
@@ -28,7 +31,7 @@ model = dict(
         in_index=[0, 1, 2, 3],
         channels=256,
         dropout_ratio=0.1,
-        num_classes=2,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
@@ -40,10 +43,10 @@ test_cfg=dict(mode='whole' )
 
 # dataset settings
 dataset_type = 'CustomDataset'
-data_root = './mmseg_data/'
-classes = ['BG', 'FTU']
-palette = [[0,0,0], [255,0,0]]
-# img_norm_cfg = dict(mean=[0.82829495,0.80269746,0.82058063], std=[0.16030526,0.18857197,0.17771745], to_rgb=True)
+data_root = './mmseg_multi_data/'
+classes = ['background', 'kidney', 'prostate', 'largeintestine', 'spleen', 'lung']
+palette = [[0,0,0], [255,0,0], [0,255,0], [0,0,255], [255,255,0], [255,0,255]]
+
 img_norm_cfg = dict(mean=[0,0,0], std=[1,1,1], to_rgb=True)
 size = 768
 
@@ -53,23 +56,23 @@ train_pipeline = [
     dict(type='LoadAnnotations'),
     dict(type='Resize', img_scale=(size, size), keep_ratio=True),
     dict(type='RandomFlip', prob=0.5, direction='horizontal'),
-
     dict(
             type='Albu',
             transforms=[
                 # dict(type='RandomBrightnessContrast', p=0.5),
                 dict(type='RandomRotate90', p=1),
-                # dict(
-                #     type='OneOf',
-                #     transforms=[
-                #         dict(
-                #             type='IAAPiecewiseAffine',p=0.3),
-                #         dict(type='GridDistortion', p=.1),
-                #         dict(
-                #             type='OpticalDistortion',
-                #             p=0.3)
-                #     ],
-                #     p=0.3),
+                # add test
+                dict(
+                    type='OneOf',
+                    transforms=[
+                        dict(
+                            type='IAAPiecewiseAffine',p=0.3),
+                        dict(type='GridDistortion', p=.1),
+                        dict(
+                            type='OpticalDistortion',
+                            p=0.3)
+                    ],
+                    p=0.3),
                 dict(
                     type='ShiftScaleRotate',
                     shift_limit=0,
@@ -106,29 +109,27 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    # 40g
-    # samples_per_gpu=16,
     samples_per_gpu=8,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
-        split="splits/fold_4.txt",
+        split="splits/fold_0.txt",
         classes=classes,
         palette=palette,
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='images',
-        ann_dir='labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
-        split="splits/valid_4.txt",
+        split="splits/valid_0.txt",
         classes=classes,
         palette=palette,
         pipeline=test_pipeline),
@@ -136,13 +137,14 @@ data = dict(
         type=dataset_type,
         data_root=data_root,
         test_mode=True,
-        img_dir='test/images',
-        ann_dir='test/labels',
+        img_dir='train',
+        ann_dir='masks',
         img_suffix=".png",
         seg_map_suffix='.png',
         classes=classes,
         palette=palette,
         pipeline=test_pipeline))
+
 
 # yapf:disable
 log_config = dict(
@@ -205,4 +207,4 @@ checkpoint_config = dict(by_epoch=False, interval=4000)
 # evaluation = dict(by_epoch=False, interval=500, metric='mDice', pre_eval=True)
 evaluation = dict(by_epoch=False, interval=4000, metric='mDice', pre_eval=True)
 fp16 = dict()
-work_dir = './mmseg-mit-b2'
+work_dir = './mmseg-mit-b2_multi'
