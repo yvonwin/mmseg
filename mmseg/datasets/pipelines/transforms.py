@@ -1007,7 +1007,11 @@ class MyPhotoDistortion(object):
 
     def convert(self, img, alpha=1, beta=0):
         """Multiple with alpha and add beat with clip."""
-        img = img.astype(np.float32) * alpha + beta
+
+        # img = img.astype(np.float32) * alpha + beta
+        
+        # change
+        img = img.astype(np.float32) * (1 + alpha) + beta
         img = np.clip(img, 0, 255)
         return img.astype(np.uint8)
     
@@ -1022,7 +1026,7 @@ class MyPhotoDistortion(object):
                                     self.brightness_delta))
         return img
 
-    def contrast(self, img,mag=0.25):
+    def contrast(self, img,mag=0.40):
         """Contrast distortion."""
         if random.randint(2):
             return self.convert(
@@ -1043,6 +1047,7 @@ class MyPhotoDistortion(object):
     #         img = np.clip(img, 0, 255)
     #         return img.astype(np.uint8)
 
+    # test in single image worked.
     def random_noise(self,img,mag=0.1):
         if random.randint(2):
             # print(type(img))
@@ -1056,7 +1061,7 @@ class MyPhotoDistortion(object):
             img = img.astype(np.uint8)
         return img
 
-    def random_hsv(self,img,mag=[0.3,0.3,0]):
+    def random_hsv(self,img,mag=[0.40,0.40,0]):
 
         # s
         if random.randint(2):
@@ -1115,14 +1120,12 @@ class MyPhotoDistortion(object):
 
         # random hue
         # img = self.hue(img)
-
+        # do random_hsv
+        img = self.random_hsv(img)
         
         # random contrast
         if mode == 0:
             img = self.contrast(img)
-
-        # do random_hsv
-        img = self.random_hsv(img)
 
         results['img'] = img
         return results
