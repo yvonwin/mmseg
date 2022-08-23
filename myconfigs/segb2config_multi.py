@@ -47,7 +47,8 @@ data_root = './mmseg_multi_data/'
 classes = ['background', 'kidney', 'prostate', 'largeintestine', 'spleen', 'lung']
 palette = [[0,0,0], [255,0,0], [0,255,0], [0,0,255], [255,255,0], [255,0,255]]
 
-img_norm_cfg = dict(mean=[0,0,0], std=[1,1,1], to_rgb=True)
+img_norm_cfg = dict(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
+# img_norm_cfg = dict(mean=[0,0,0], std=[1,1,1], to_rgb=True)
 size = 768
 
 
@@ -62,17 +63,34 @@ train_pipeline = [
                 # dict(type='RandomBrightnessContrast', p=0.5),
                 dict(type='RandomRotate90', p=1),
                 # add test
-                dict(
-                    type='OneOf',
-                    transforms=[
-                        dict(
-                            type='IAAPiecewiseAffine',p=0.3),
-                        dict(type='GridDistortion', p=.1),
-                        dict(
-                            type='OpticalDistortion',
-                            p=0.3)
-                    ],
-                    p=0.3),
+                # dict(
+                #     type='OneOf',
+                #     transforms=[
+                #         dict(
+                #             type='IAAPiecewiseAffine',p=0.3),
+                #         dict(type='GridDistortion', p=.1),
+                #         dict(
+                #             type='OpticalDistortion',
+                #             p=0.3)
+                #     ],
+                #     p=0.3),
+                # dict(
+                #     type='MultiplicativeNoise',
+                #     p = 0.5
+                # ),
+
+                # dict(
+                #     type = 'RandomContrast',
+                #     limit = 0.1,
+                #     p = 0.5,
+                # ),
+                # dict(
+                #     type = 'HueSaturationValue',
+                #     hue_shift_limit = 10,
+                #     sat_shift_limit = 10,
+                #     val_shift_limit = 0,
+                #     p = 0.5,
+                # ),
                 dict(
                     type='ShiftScaleRotate',
                     shift_limit=0,

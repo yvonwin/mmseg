@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import os
 from sklearn.model_selection import StratifiedKFold
-
+from sklearn.model_selection import KFold
 
 """
 python mmsegmentation/myconfigs/data_prepare_multi.py

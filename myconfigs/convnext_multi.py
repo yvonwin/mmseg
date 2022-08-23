@@ -1,6 +1,3 @@
-# b2 单分类pb 0.71
-# TODO TEST
-
 num_classes = 6
 
 norm_cfg = dict(type='SyncBN', requires_grad=True)
@@ -68,25 +65,20 @@ train_pipeline = [
     dict(
             type='Albu',
             transforms=[
-                # dict(type='RandomBrightnessContrast', p=0.5),
                 dict(type='RandomRotate90', p=1),
-                # dict(
-                #     type='OneOf',
-                #     transforms=[
-                #         dict(
-                #             type='ElasticTransform',
-                #             alpha=120,
-                #             sigma=6.0,
-                #             alpha_affine=3.5999999999999996,
-                #             p=1),
-                #         dict(type='GridDistortion', p=1),
-                #         dict(
-                #             type='OpticalDistortion',
-                #             distort_limit=2,
-                #             shift_limit=0.5,
-                #             p=1)
-                #     ],
-                #     p=0.3),
+                # add test
+                dict(
+                    type='OneOf',
+                    transforms=[
+                        dict(
+                            type='IAAPiecewiseAffine',p=0.3),
+                        dict(type='GridDistortion', p=.1),
+                        dict(
+                            type='OpticalDistortion',
+                            p=0.3)
+                    ],
+                    p=0.3),
+
                 dict(
                     type='ShiftScaleRotate',
                     shift_limit=0,
@@ -96,8 +88,6 @@ train_pipeline = [
                     border_mode=0,
                     value = (0,0,0),
                     p=0.5),
-                # dict(type='Resize', height=640, width=640, always_apply=True, p=1),
-                # dict(type='RandomCrop', height=448, width=448, p=1)
             ]),
             
     dict(type='MyPhotoDistortion'),

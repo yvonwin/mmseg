@@ -24,10 +24,11 @@ import pandas as pd
 # ]
 
 configs = [
-    '/home/zhaodao/HuBMAP/mmseg-mit-b2/segb2config_transform_test.py',
-]
+    '/home/zhaodao/HuBMAP/convnext_uper_multi/convnext_multi.py',
+    ]
 ckpts = [
-    '/home/zhaodao/HuBMAP/mmseg-mit-b2/latest.pth',
+    '/home/zhaodao/HuBMAP/convnext_uper_multi/latest.pth',
+    # '/home/zhaodao/HuBMAP/mmseg-mit-b2_multi/iter_20000.pth',
     # '/home/zhaodao/HuBMAP/knet-swinl/iter_100000.pth',
     # '/content/drive/MyDrive/humap-weights/mmseg-mit-b2-new/iter_44000.pth',
 ]
@@ -41,6 +42,7 @@ models = []
 for idx,(cfg, ckpt) in enumerate(zip(configs, ckpts)):
     cfg = config.Config.fromfile(cfg)
     model = init_segmentor(cfg, ckpt, device='cuda:0')
+    # model = init_segmentor(cfg, ckpt, device='cpu')
     models.append(model)
 
 def rle_encode_less_memory(img):
@@ -61,8 +63,9 @@ debug = len(df_sample)<2
 for idx,row in tqdm(df_sample.iterrows(),total=len(df_sample)):
     img  = cv2.imread(os.path.join(DATA,str(idx)+'.tiff'))
     # img = cv2.imread('/home/zhaodao/HuBMAP/input/hubmap-organ-segmentation/train_images/1184.tiff')
-    im_ = img.astype(np.float32)/img.max()
+    # im_ = img.astype(np.float32)/img.max()
     # im_ = img
+    im_ = img / img.max()
 
     print(im_.shape)
     pred = inference_segmentor(models[0], im_)[0]
@@ -87,3 +90,4 @@ if debug:
         plt.subplot(1, 3, 3); plt.imshow(img); plt.imshow(mask*255, alpha=0.4); plt.axis('OFF'); plt.title('overlay')
         plt.tight_layout()
         plt.show()
+        plt.savefig('./mmsegmentation/test_infer.png')
